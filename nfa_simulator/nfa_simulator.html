@@ -1,0 +1,896 @@
+<title>Simulador de AFN</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+
+<style>
+/* ── Design tokens ───────────────────────────────────────────────────────── */
+:root {
+  --bg:         #f4f3f0;
+  --surface:    #ffffff;
+  --surface-2:  #edecea;
+  --border:     #dddbd5;
+  --text:       #1c1917;
+  --muted:      #78716c;
+  --accent:     #4f46e5;
+  --accent-dim: #eef2ff;
+  --ok:         #059669;
+  --ok-bg:      #ecfdf5;
+  --bad:        #dc2626;
+  --bad-bg:     #fef2f2;
+  --radius:     10px;
+  --shadow:     0 1px 3px rgba(0,0,0,.07), 0 4px 14px rgba(0,0,0,.04);
+  --font:       'Outfit', system-ui, sans-serif;
+  --mono:       'JetBrains Mono', 'Courier New', monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:#0d1117; --surface:#161b22; --surface-2:#21262d; --border:#30363d;
+    --text:#cdd9e5; --muted:#768390; --accent:#818cf8; --accent-dim:#1e1b40;
+    --ok:#34d399; --ok-bg:#022c22; --bad:#f87171; --bad-bg:#2d1515;
+    --shadow:0 1px 3px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.2);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg:#0d1117; --surface:#161b22; --surface-2:#21262d; --border:#30363d;
+  --text:#cdd9e5; --muted:#768390; --accent:#818cf8; --accent-dim:#1e1b40;
+  --ok:#34d399; --ok-bg:#022c22; --bad:#f87171; --bad-bg:#2d1515;
+  --shadow:0 1px 3px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.2);
+  color-scheme:dark;
+}
+
+/* ── Base ────────────────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  font-family:var(--font); background:var(--bg); color:var(--text);
+  display:flex; flex-direction:column;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:0; overflow:hidden;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.hdr{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 0; border-bottom:1px solid var(--border);
+  flex-shrink:0; gap:12px;
+}
+.hdr-title{font-size:1rem;font-weight:700;letter-spacing:-.01em}
+.hdr-sub{color:var(--muted);font-weight:400;font-size:.78rem;margin-left:8px}
+.theme-btn{
+  font-family:var(--font);font-size:.78rem;
+  background:var(--surface-2);color:var(--muted);
+  border:1px solid var(--border);border-radius:6px;
+  padding:5px 10px;cursor:pointer;
+}
+.theme-btn:hover{color:var(--accent);border-color:var(--accent)}
+
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+.main{display:flex;gap:14px;flex:1;min-height:0;padding:14px 0}
+.sidebar{
+  width:370px;flex-shrink:0;
+  display:flex;flex-direction:column;gap:10px;
+  overflow-y:auto;padding-right:2px;
+}
+
+/* ── Cards ───────────────────────────────────────────────────────────────── */
+.card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow);
+}
+.card-label{
+  font-size:.72rem;font-weight:600;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--muted);margin:0 0 10px;
+}
+
+/* ── Tabs ────────────────────────────────────────────────────────────────── */
+.tab-bar{
+  display:flex;gap:2px;background:var(--surface-2);
+  border-radius:8px;padding:3px;margin-bottom:12px;
+}
+.tab-btn{
+  flex:1;font-family:var(--font);font-size:.78rem;font-weight:600;
+  padding:6px 4px;border:none;border-radius:6px;
+  cursor:pointer;background:transparent;color:var(--muted);transition:all .15s;
+}
+.tab-btn.active{background:var(--surface);color:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* ── Example grid ────────────────────────────────────────────────────────── */
+.ex-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.ex-card{
+  background:var(--surface-2);border:1px solid var(--border);
+  border-radius:8px;padding:9px 11px;
+  cursor:pointer;transition:all .15s;text-align:left;
+}
+.ex-card:hover{border-color:var(--accent);background:var(--accent-dim)}
+.ex-card.sel{border-color:var(--accent);background:var(--accent-dim)}
+.ex-name{font-size:.8rem;font-weight:600;color:var(--text);line-height:1.3}
+.ex-desc{font-size:.69rem;color:var(--muted);margin-top:2px;line-height:1.35}
+
+/* ── Create form ─────────────────────────────────────────────────────────── */
+.cf-label{font-size:.78rem;font-weight:600;color:var(--text);margin:0 0 4px;display:block}
+.cf-input{
+  width:100%;font-family:var(--mono);font-size:.82rem;
+  padding:7px 10px;background:var(--surface-2);color:var(--text);
+  border:1px solid var(--border);border-radius:6px;outline:none;
+  margin-bottom:10px;
+}
+.cf-input:focus{border-color:var(--accent)}
+select.cf-input{cursor:pointer}
+.cf-row{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+.cf-eps-label{font-size:.78rem;color:var(--muted);cursor:pointer;white-space:nowrap;flex-shrink:0}
+.cf-eps-label input{accent-color:var(--accent);cursor:pointer}
+
+/* Accept chips */
+.acc-grid{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.acc-chip{
+  display:flex;align-items:center;gap:5px;
+  padding:4px 10px;border-radius:20px;
+  border:1px solid var(--border);background:var(--surface-2);
+  cursor:pointer;font-size:.78rem;font-family:var(--mono);transition:all .15s;
+}
+.acc-chip input{accent-color:var(--accent);cursor:pointer}
+.acc-chip:has(input:checked){border-color:var(--ok);background:var(--ok-bg);color:var(--ok)}
+
+/* Transition table */
+.tr-wrap{overflow-x:auto;margin-bottom:8px;border-radius:6px;border:1px solid var(--border)}
+.tr-table{border-collapse:collapse;width:100%;font-size:.75rem;font-family:var(--mono)}
+.tr-table th,.tr-table td{border:1px solid var(--border);padding:0}
+.tr-table th{
+  background:var(--surface-2);color:var(--muted);
+  font-weight:600;text-align:center;padding:5px 10px;
+}
+.tr-state-cell{
+  background:var(--surface-2);color:var(--text);
+  font-weight:600;text-align:center;padding:5px 10px;
+  white-space:nowrap;
+}
+.tr-cell{
+  width:100%;font-family:var(--mono);font-size:.74rem;
+  padding:4px 6px;background:transparent;color:var(--text);
+  border:none;outline:none;min-width:65px;
+}
+.tr-cell:focus{background:var(--accent-dim)}
+
+/* ── JSON textarea ───────────────────────────────────────────────────────── */
+#nfa-json{
+  width:100%;font-family:var(--mono);font-size:.76rem;line-height:1.65;
+  background:var(--surface-2);color:var(--text);
+  border:1px solid var(--border);border-radius:6px;
+  padding:10px;resize:vertical;min-height:170px;outline:none;
+}
+#nfa-json:focus{border-color:var(--accent)}
+
+.err-msg{font-size:.78rem;color:var(--bad);margin-top:6px;display:none}
+.err-msg.show{display:block}
+.cf-tip{
+  font-size:.76rem;color:var(--muted);line-height:1.55;
+  background:var(--surface-2);border:1px solid var(--border);
+  border-radius:7px;padding:9px 12px;margin-bottom:12px;
+}
+.cf-tip code{font-family:var(--mono);background:var(--border);padding:1px 5px;border-radius:3px}
+.cf-hint{font-weight:400;color:var(--muted);font-size:.72rem}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.btn{
+  font-family:var(--font);font-size:.88rem;font-weight:600;
+  width:100%;margin-top:8px;padding:9px 16px;
+  border-radius:7px;border:none;cursor:pointer;
+  transition:opacity .15s,transform .1s;
+}
+.btn:active{transform:scale(.98)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{opacity:.88}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+
+/* ── Input string ────────────────────────────────────────────────────────── */
+.str-input{
+  width:100%;font-family:var(--mono);font-size:1rem;letter-spacing:.12em;
+  padding:8px 12px;background:var(--surface-2);color:var(--text);
+  border:1px solid var(--border);border-radius:6px;outline:none;
+}
+.str-input:focus{border-color:var(--accent)}
+
+/* ── Result ──────────────────────────────────────────────────────────────── */
+.result-box{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px;border-radius:8px;margin-bottom:10px;
+  font-weight:600;font-size:.9rem;
+}
+.result-box.ok {background:var(--ok-bg); color:var(--ok); border:1px solid var(--ok)}
+.result-box.bad{background:var(--bad-bg);color:var(--bad);border:1px solid var(--bad)}
+
+/* ── Trace ───────────────────────────────────────────────────────────────── */
+.trace{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;max-height:180px;overflow-y:auto}
+.t-item{
+  display:flex;align-items:center;gap:8px;
+  padding:5px 8px;border-radius:5px;cursor:pointer;transition:background .12s;
+}
+.t-item.active{background:rgba(245,158,11,.12)}
+.t-item:hover{background:var(--surface-2)}
+.t-sym{
+  font-family:var(--mono);font-size:.74rem;font-weight:600;
+  min-width:26px;text-align:center;
+  padding:2px 5px;border-radius:4px;background:var(--surface-2);flex-shrink:0;
+}
+.t-states{font-family:var(--mono);font-size:.76rem;color:var(--muted)}
+.t-states.ok-color{color:var(--ok);font-weight:600}
+
+/* ── Graph panel ─────────────────────────────────────────────────────────── */
+.graph-panel{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}
+#graph-wrap{
+  flex:1;min-height:0;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);box-shadow:var(--shadow);
+  position:relative;overflow:hidden;
+}
+.placeholder{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  color:var(--muted);gap:10px;pointer-events:none;user-select:none;
+}
+.placeholder svg{opacity:.25}
+.placeholder p{margin:0;font-size:.88rem}
+
+/* ── Step controls ───────────────────────────────────────────────────────── */
+.step-ctrl{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);box-shadow:var(--shadow);
+  padding:10px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;
+}
+.s-btn{
+  font-family:var(--font);font-size:.8rem;
+  padding:5px 12px;border-radius:6px;
+  border:1px solid var(--border);background:var(--surface-2);color:var(--text);
+  cursor:pointer;flex-shrink:0;
+}
+.s-btn:hover{border-color:var(--accent);color:var(--accent)}
+.s-btn:disabled{opacity:.35;cursor:not-allowed}
+.s-btn.play{font-size:1rem;padding:5px 10px}
+.s-mid{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0}
+.s-chars{display:flex;gap:3px;flex-wrap:wrap;justify-content:center}
+.s-char{
+  font-family:var(--mono);font-size:.82rem;
+  padding:3px 7px;border-radius:4px;
+  background:var(--surface-2);border:1px solid var(--border);
+  min-width:26px;text-align:center;transition:all .18s;
+}
+.s-char.cur {background:rgba(245,158,11,.2);border-color:#f59e0b;color:#d97706;font-weight:700}
+.s-char.done{opacity:.35}
+.s-info{font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* ── Legend ──────────────────────────────────────────────────────────────── */
+.legend{
+  display:flex;gap:14px;flex-wrap:wrap;
+  font-size:.73rem;color:var(--muted);align-items:center;
+  padding:0 2px;flex-shrink:0;
+}
+.leg-item{display:flex;align-items:center;gap:5px}
+.leg-dot{width:12px;height:12px;border-radius:50%;border:2px solid;flex-shrink:0}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media(max-width:720px){
+  body{overflow:auto}
+  .main{flex-direction:column;overflow:visible}
+  .sidebar{width:100%;overflow-y:visible}
+  .graph-panel{min-height:320px}
+  #graph-wrap{min-height:320px;height:320px;flex:none}
+  .hdr-sub{display:none}
+  .ex-grid{grid-template-columns:1fr 1fr}
+}
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.6/standalone/umd/vis-network.min.js"></script>
+
+<!-- ═══ HEADER ════════════════════════════════════════════════════════════ -->
+<header class="hdr">
+  <div class="hdr-title">
+    Simulador de AFN
+    <span class="hdr-sub">Linguagens Formais e Computabilidade</span>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">🌓 Tema</button>
+</header>
+
+<!-- ═══ MAIN ══════════════════════════════════════════════════════════════ -->
+<div class="main">
+
+  <aside class="sidebar">
+
+    <!-- ── Source card ── -->
+    <div class="card">
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('examples')">Exemplos</button>
+        <button class="tab-btn"        onclick="switchTab('create')">Criar AFN</button>
+        <button class="tab-btn"        onclick="switchTab('json')">JSON</button>
+      </div>
+
+      <!-- EXAMPLES -->
+      <div class="tab-panel active" id="tab-examples">
+        <div class="ex-grid" id="ex-grid"></div>
+        <button class="btn btn-primary" onclick="loadSelectedExample()">Carregar Exemplo</button>
+      </div>
+
+      <!-- CREATE -->
+      <div class="tab-panel" id="tab-create">
+        <div class="cf-tip">💡 <strong>Como usar:</strong> liste estados e símbolos separados por vírgula. Na tabela, preencha os estados-destino de cada transição (ex: <code>q1</code> ou <code>q0, q1</code>). Deixe vazio onde não há transição. Clique <em>Carregar AFN</em> para ver o grafo.</div>
+
+        <label class="cf-label">Estados <span class="cf-hint">(um nome por célula, separados por vírgula)</span></label>
+        <input class="cf-input" id="cf-states" placeholder="q0, q1, q2" oninput="cfUpdate()">
+
+        <label class="cf-label">Alfabeto <span class="cf-hint">(um símbolo por célula — ex: a, b)</span></label>
+        <div class="cf-row">
+          <input class="cf-input" id="cf-alpha" placeholder="a, b" oninput="cfUpdate()" style="margin:0;flex:1">
+          <label class="cf-eps-label">
+            <input type="checkbox" id="cf-eps" onchange="cfUpdate()"> incluir ε
+          </label>
+        </div>
+
+        <div id="cf-dynamic" style="display:none">
+          <label class="cf-label">Estado inicial</label>
+          <select class="cf-input" id="cf-start"></select>
+
+          <label class="cf-label" style="margin-top:4px">Estados de aceitação</label>
+          <div class="acc-grid" id="cf-acc-grid"></div>
+
+          <label class="cf-label">Tabela de Transições <span class="cf-hint">(preencha os destinos de cada δ(estado, símbolo))</span></label>
+          <div class="tr-wrap">
+            <table class="tr-table" id="cf-table"></table>
+          </div>
+        </div>
+
+        <div class="err-msg" id="cf-err"></div>
+        <button class="btn btn-primary" onclick="doLoadFromForm()">Carregar AFN</button>
+      </div>
+
+      <!-- JSON -->
+      <div class="tab-panel" id="tab-json">
+        <textarea id="nfa-json" spellcheck="false">{
+  "states": ["q0", "q1", "q2"],
+  "alphabet": ["a", "b"],
+  "start": "q0",
+  "accept": ["q2"],
+  "transitions": {
+    "q0": { "a": ["q0", "q1"], "b": ["q0"] },
+    "q1": { "b": ["q2"] },
+    "q2": {}
+  }
+}</textarea>
+        <div class="err-msg" id="json-err"></div>
+        <button class="btn btn-primary" onclick="doLoadJSON()">Carregar Autômato</button>
+      </div>
+    </div><!-- /source card -->
+
+    <!-- ── Input string ── -->
+    <div class="card">
+      <p class="card-label">Cadeia de Entrada</p>
+      <input id="str-in" class="str-input" type="text" value="aab"
+             placeholder="ex: aab"
+             onkeydown="if(event.key==='Enter') doSim()">
+      <button class="btn btn-primary" id="sim-btn" onclick="doSim()" disabled>Simular</button>
+    </div>
+
+    <!-- ── Result + trace ── -->
+    <div class="card" id="res-card" hidden>
+      <div class="result-box" id="res-box">
+        <span id="res-icon"></span><span id="res-txt"></span>
+      </div>
+      <p class="card-label" style="margin-top:4px">Trace da Simulação</p>
+      <ul class="trace" id="trace-list"></ul>
+    </div>
+
+  </aside>
+
+  <!-- ── Graph ── -->
+  <div class="graph-panel">
+
+    <div id="graph-wrap">
+      <div class="placeholder" id="placeholder">
+        <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+          <circle cx="13" cy="26" r="10" stroke="currentColor" stroke-width="2"/>
+          <circle cx="39" cy="26" r="10" stroke="currentColor" stroke-width="2"/>
+          <circle cx="39" cy="26" r="6.5" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2"/>
+          <path d="M23 26h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M27 23l3 3-3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M2 26h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M5 23l2 3-2 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <p>Clique em <strong>Carregar</strong> para visualizar o autômato</p>
+      </div>
+      <div id="vis-net" style="position:absolute;inset:0;"></div>
+    </div>
+
+    <div class="step-ctrl" id="step-ctrl" hidden>
+      <button class="s-btn" id="btn-prev" onclick="stepTo(curStep-1)">← Prev</button>
+      <div class="s-mid">
+        <div class="s-chars" id="s-chars"></div>
+        <div class="s-info" id="s-info">—</div>
+      </div>
+      <button class="s-btn" id="btn-next" onclick="stepTo(curStep+1)">Next →</button>
+      <button class="s-btn play" id="btn-play" onclick="togglePlay()">▶</button>
+    </div>
+
+    <div class="legend" id="legend" hidden>
+      <div class="leg-item">
+        <div class="leg-dot" style="background:#2d3651;border-color:#5a6e9a"></div>Estado normal
+      </div>
+      <div class="leg-item">
+        <div class="leg-dot" style="background:rgba(245,158,11,.2);border-color:#f59e0b"></div>Estado ativo
+      </div>
+      <div class="leg-item">
+        <div class="leg-dot" style="background:#2d3651;border-color:#10b981;border-width:3px"></div>Estado de aceitação
+      </div>
+      <div class="leg-item">
+        <div class="leg-dot" style="background:rgba(245,158,11,.2);border-color:#10b981;border-width:3px"></div>Ativo + aceitação
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══ SCRIPT ════════════════════════════════════════════════════════════ -->
+<script>
+// ── 8 Built-in Examples ───────────────────────────────────────────────────
+const EXAMPLES = [
+  { name:'Termina em "ab"',
+    desc:'Cadeias sobre {a,b} que terminam em ab',
+    input:'aab',
+    nfa:{ states:["q0","q1","q2"], alphabet:["a","b"], start:"q0", accept:["q2"],
+          transitions:{ q0:{"a":["q0","q1"],"b":["q0"]}, q1:{"b":["q2"]}, q2:{} } } },
+
+  { name:'ε-transições',
+    desc:'Aceita a* ou exatamente um "b"',
+    input:'aaa',
+    nfa:{ states:["q0","q1","q2","q3"], alphabet:["a","b"], start:"q0", accept:["q1","q3"],
+          transitions:{ q0:{"ε":["q1","q2"]}, q1:{"a":["q1"]}, q2:{"b":["q3"]}, q3:{} } } },
+
+  { name:'Divisível por 3',
+    desc:'Número binário divisível por 3',
+    input:'110',
+    nfa:{ states:["q0","q1","q2"], alphabet:["0","1"], start:"q0", accept:["q0"],
+          transitions:{ q0:{"0":["q0"],"1":["q1"]}, q1:{"0":["q2"],"1":["q0"]}, q2:{"0":["q1"],"1":["q2"]} } } },
+
+  { name:'Contém "aba"',
+    desc:'Cadeias que têm "aba" como subcadeia',
+    input:'babab',
+    nfa:{ states:["q0","q1","q2","q3"], alphabet:["a","b"], start:"q0", accept:["q3"],
+          transitions:{ q0:{"a":["q0","q1"],"b":["q0"]}, q1:{"b":["q2"]}, q2:{"a":["q3"]}, q3:{"a":["q3"],"b":["q3"]} } } },
+
+  { name:'Começa com "a"',
+    desc:'Qualquer cadeia que inicia com a',
+    input:'abb',
+    nfa:{ states:["q0","q1"], alphabet:["a","b"], start:"q0", accept:["q1"],
+          transitions:{ q0:{"a":["q1"]}, q1:{"a":["q1"],"b":["q1"]} } } },
+
+  { name:'Termina com "b"',
+    desc:'Qualquer cadeia que termina com b',
+    input:'aab',
+    nfa:{ states:["q0","q1"], alphabet:["a","b"], start:"q0", accept:["q1"],
+          transitions:{ q0:{"a":["q0"],"b":["q0","q1"]}, q1:{} } } },
+
+  { name:'a* b* com ε',
+    desc:'Zero ou mais a\'s seguidos de zero ou mais b\'s',
+    input:'aabb',
+    nfa:{ states:["q0","q1","q2"], alphabet:["a","b"], start:"q0", accept:["q2"],
+          transitions:{ q0:{"a":["q0"],"ε":["q1"]}, q1:{"b":["q1"],"ε":["q2"]}, q2:{} } } },
+
+  { name:'Par de "a"s',
+    desc:'Número par de a\'s (0, 2, 4…)',
+    input:'abba',
+    nfa:{ states:["q0","q1"], alphabet:["a","b"], start:"q0", accept:["q0"],
+          transitions:{ q0:{"a":["q1"],"b":["q0"]}, q1:{"a":["q0"],"b":["q1"]} } } },
+];
+
+let activeEx = 0;
+
+function renderExamples() {
+  const grid = document.getElementById('ex-grid');
+  grid.innerHTML = '';
+  EXAMPLES.forEach((ex, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'ex-card' + (i === activeEx ? ' sel' : '');
+    btn.innerHTML = `<div class="ex-name">${ex.name}</div><div class="ex-desc">${ex.desc}</div>`;
+    btn.onclick = () => {
+      activeEx = i;
+      document.querySelectorAll('.ex-card').forEach((b,j) => b.classList.toggle('sel', j===i));
+      document.getElementById('str-in').value = ex.input;
+    };
+    grid.appendChild(btn);
+  });
+}
+
+function loadSelectedExample() {
+  const ex = EXAMPLES[activeEx];
+  document.getElementById('str-in').value = ex.input;
+  document.getElementById('nfa-json').value = JSON.stringify(ex.nfa, null, 2);
+  loadNFA(ex.nfa);
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────
+let activeTab = 'examples';
+function switchTab(tab) {
+  activeTab = tab;
+  ['examples','create','json'].forEach((t,i) => {
+    document.querySelectorAll('.tab-btn')[i].classList.toggle('active', t===tab);
+    document.getElementById('tab-'+t).classList.toggle('active', t===tab);
+  });
+}
+
+// ── Create form ───────────────────────────────────────────────────────────
+let cfStates=[], cfAlpha=[], cfSymbols=[];
+
+function cfUpdate() {
+  cfStates = document.getElementById('cf-states').value
+    .split(',').map(s=>s.trim()).filter(Boolean);
+  cfAlpha  = document.getElementById('cf-alpha').value
+    .split(',').map(s=>s.trim()).filter(Boolean);
+  const hasEps = document.getElementById('cf-eps').checked;
+  cfSymbols = [...cfAlpha, ...(hasEps?['ε']:[])];
+
+  const dyn = document.getElementById('cf-dynamic');
+  if (!cfStates.length || !cfAlpha.length) { dyn.style.display='none'; return; }
+  dyn.style.display = 'block';
+
+  // Start state select
+  const sel = document.getElementById('cf-start');
+  const prevStart = sel.value;
+  sel.innerHTML = cfStates.map(s=>`<option${s===prevStart?' selected':''}>${s}</option>`).join('');
+
+  // Accept checkboxes
+  const prevAcc = new Set([...document.querySelectorAll('.cf-acc:checked')].map(c=>c.value));
+  document.getElementById('cf-acc-grid').innerHTML = cfStates.map(s=>`
+    <label class="acc-chip">
+      <input type="checkbox" class="cf-acc" value="${s}"${prevAcc.has(s)?' checked':''}> ${s}
+    </label>`).join('');
+
+  // Transition table — preserve existing values
+  const prevVals = {};
+  document.querySelectorAll('.tr-cell').forEach(inp => {
+    if (inp.dataset.key) prevVals[inp.dataset.key] = inp.value;
+  });
+
+  let html = '<tr><th>δ</th>' + cfSymbols.map(s=>`<th>${s}</th>`).join('') + '</tr>';
+  for (const st of cfStates) {
+    html += `<tr><td class="tr-state-cell">${st}</td>`;
+    for (const sym of cfSymbols) {
+      const key = st + '|' + sym;
+      const prev = prevVals[key] || '';
+      html += `<td><input class="tr-cell" data-key="${key}" data-st="${st}" data-sym="${sym}" placeholder="—" value="${prev}"></td>`;
+    }
+    html += '</tr>';
+  }
+  document.getElementById('cf-table').innerHTML = html;
+}
+
+function doLoadFromForm() {
+  const errEl = document.getElementById('cf-err');
+  errEl.className = 'err-msg';
+  if (!cfStates.length) { errEl.textContent='Defina os estados.'; errEl.className='err-msg show'; return; }
+  if (!cfAlpha.length)  { errEl.textContent='Defina o alfabeto.'; errEl.className='err-msg show'; return; }
+
+  const start  = document.getElementById('cf-start').value;
+  const accept = [...document.querySelectorAll('.cf-acc:checked')].map(c=>c.value);
+  const transitions = {};
+  for (const st of cfStates) {
+    transitions[st] = {};
+    document.querySelectorAll(`.tr-cell[data-st="${st}"]`).forEach(inp => {
+      const sym = inp.dataset.sym;
+      const targets = inp.value.split(',').map(s=>s.trim()).filter(s=>cfStates.includes(s));
+      if (targets.length) transitions[st][sym] = targets;
+    });
+  }
+
+  const j = { states:cfStates, alphabet:cfAlpha, start, accept, transitions };
+  document.getElementById('nfa-json').value = JSON.stringify(j, null, 2);
+  loadNFA(j);
+}
+
+function doLoadJSON() {
+  const errEl = document.getElementById('json-err');
+  errEl.className = 'err-msg';
+  let j;
+  try { j = JSON.parse(document.getElementById('nfa-json').value); }
+  catch(e) { errEl.textContent='JSON inválido: '+e.message; errEl.className='err-msg show'; return; }
+  for (const f of ['states','alphabet','start','accept','transitions']) {
+    if (!j[f]) { errEl.textContent=`Campo obrigatório ausente: "${f}"`; errEl.className='err-msg show'; return; }
+  }
+  loadNFA(j);
+}
+
+// ── NFA Core ──────────────────────────────────────────────────────────────
+function eClosure(states, tr) {
+  const cl=new Set(states), stk=[...states];
+  while(stk.length){
+    const s=stk.pop();
+    for(const t of((tr[s]||{})['ε']||[]))
+      if(!cl.has(t)){cl.add(t);stk.push(t);}
+  }
+  return cl;
+}
+function mvFn(states, sym, tr) {
+  const r=new Set();
+  for(const s of states) for(const t of((tr[s]||{})[sym]||[])) r.add(t);
+  return r;
+}
+function runNFA(nfa, str) {
+  const {transitions:tr, start, accept}=nfa;
+  const acc=new Set(accept);
+  let cur=eClosure(new Set([start]),tr);
+  const trace=[{sym:null, states:[...cur].sort()}];
+  for(const sym of str){
+    cur=eClosure(mvFn(cur,sym,tr),tr);
+    trace.push({sym, states:[...cur].sort()});
+    if(!cur.size) break;
+  }
+  return {accepted:[...cur].some(s=>acc.has(s)), trace, finals:[...cur].sort()};
+}
+
+// ── State ─────────────────────────────────────────────────────────────────
+let nfa=null, net=null, nodesDS=null, edgesDS=null;
+let result=null, curStep=0, playing=null;
+
+const NET_OPTIONS = {
+  physics:{enabled:false},
+  interaction:{hover:true},
+  nodes:{chosen:false},
+  edges:{chosen:false,selectionWidth:0},
+};
+
+// ── Colors ────────────────────────────────────────────────────────────────
+function dark(){
+  const t=document.documentElement.dataset.theme;
+  return t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches);
+}
+function C(){
+  return dark()?{
+    nBg:'#1e2535', nBrd:'#4c5e80', nTxt:'#c8d8f0',
+    nActBg:'#3d2e00', nActBrd:'#f59e0b', nAccBrd:'#34d399',
+    edge:'#3c4a60', eTxt:'#5a6a84', start:'#283850',
+  }:{
+    nBg:'#edf2ff', nBrd:'#7a9fd4', nTxt:'#1a2a4a',
+    nActBg:'#fffbeb', nActBrd:'#f59e0b', nAccBrd:'#059669',
+    edge:'#9ab0cc', eTxt:'#5a7290', start:'#c0d4ee',
+  };
+}
+
+// ── BFS layout (left → right, organized) ─────────────────────────────────
+function bfsLayout(nfa) {
+  // 1. Assign depth via BFS from start state
+  const depth = {[nfa.start]:0};
+  const q = [nfa.start];
+  while(q.length){
+    const s=q.shift();
+    for(const targets of Object.values(nfa.transitions[s]||{}))
+      for(const t of targets)
+        if(!(t in depth)){depth[t]=depth[s]+1; q.push(t);}
+  }
+  // Unreachable states go to max+1
+  const maxD = Math.max(0,...Object.values(depth));
+  for(const s of nfa.states) if(!(s in depth)) depth[s]=maxD+1;
+
+  // 2. Group states by depth
+  const byDepth={};
+  for(const s of nfa.states)(byDepth[depth[s]]=byDepth[depth[s]]||[]).push(s);
+
+  // 3. Assign x/y positions
+  const pos={}, xGap=190, yGap=130;
+  for(const [d,states] of Object.entries(byDepth)){
+    const lv=Number(d);
+    states.forEach((s,i)=>{
+      pos[s]={x:lv*xGap, y:(i-(states.length-1)/2)*yGap};
+    });
+  }
+
+  // 4. Phantom start arrow origin
+  const sp=pos[nfa.start];
+  pos['__s']={x:sp.x-xGap*0.65, y:sp.y};
+  return pos;
+}
+
+// ── Build graph ───────────────────────────────────────────────────────────
+function buildGraph(nfa) {
+  const c=C(), pos=bfsLayout(nfa);
+  const nodes=[], edges=[];
+
+  // phantom start
+  nodes.push({id:'__s',label:'',shape:'dot',size:3,
+    color:{background:c.start,border:c.start},
+    x:pos['__s'].x, y:pos['__s'].y, physics:false});
+  edges.push({id:'__se',from:'__s',to:nfa.start,
+    arrows:'to',color:{color:c.edge},
+    label:'início',font:{color:c.eTxt,size:11,face:'Outfit'},
+    smooth:{type:'straight',roundness:0}});
+
+  // states
+  for(const st of nfa.states){
+    const isAcc=nfa.accept.includes(st);
+    nodes.push({id:st, label:st, shape:'circle',
+      color:{background:c.nBg, border:isAcc?c.nAccBrd:c.nBrd,
+             hover:{background:c.nActBg,border:c.nActBrd}},
+      borderWidth:isAcc?3:2,
+      font:{color:c.nTxt,size:15,face:'Outfit',bold:'600 15px Outfit'},
+      size:30, x:pos[st].x, y:pos[st].y, physics:false});
+  }
+
+  // edges — group (from,to) → labels
+  const em={};
+  for(const [from,tr] of Object.entries(nfa.transitions))
+    for(const [sym,tos] of Object.entries(tr))
+      for(const to of tos){
+        const k=`${from}|||${to}`;
+        (em[k]||(em[k]={from,to,labs:[]})).labs.push(sym);
+      }
+
+  let i=0;
+  for(const {from,to,labs} of Object.values(em)){
+    const self=from===to;
+    const hasRev=!!em[`${to}|||${from}`];
+    edges.push({id:`e${i++}`, from, to,
+      label:labs.join(', '),
+      arrows:'to',
+      color:{color:c.edge,highlight:c.nActBrd},
+      font:{color:c.eTxt,size:12,face:'JetBrains Mono',background:'rgba(0,0,0,0)',strokeWidth:0},
+      smooth: self
+        ? {type:'curvedCW',roundness:.65}
+        : (hasRev
+          ? {type:'curvedCW',roundness:.4}
+          : {type:'curvedCW',roundness:.08})
+    });
+  }
+  return {nodes,edges};
+}
+
+function initNet(nfaDef) {
+  document.getElementById('placeholder').style.display='none';
+  const {nodes,edges}=buildGraph(nfaDef);
+
+  if (!net) {
+    // First load: create DataSets and the Network once
+    nodesDS = new vis.DataSet(nodes);
+    edgesDS = new vis.DataSet(edges);
+    net = new vis.Network(
+      document.getElementById('vis-net'),
+      {nodes:nodesDS, edges:edgesDS},
+      NET_OPTIONS
+    );
+  } else {
+    // Subsequent loads: clear and repopulate DataSets — no destroy needed
+    nodesDS.clear();
+    edgesDS.clear();
+    nodesDS.add(nodes);
+    edgesDS.add(edges);
+  }
+
+  setTimeout(()=>net&&net.fit({animation:{duration:350,easingFunction:'easeInOutQuad'}}),80);
+}
+
+function highlightStep(step){
+  if(!nfa||!nodesDS) return;
+  const c=C(), act=new Set(step.states), acc=new Set(nfa.accept);
+  nodesDS.update(nfa.states.map(s=>({
+    id:s,
+    color:{
+      background:act.has(s)?c.nActBg:c.nBg,
+      border:act.has(s)?c.nActBrd:(acc.has(s)?c.nAccBrd:c.nBrd),
+      hover:{background:c.nActBg,border:c.nActBrd},
+    },
+    borderWidth:(act.has(s)&&acc.has(s))?4:acc.has(s)?3:2,
+  })));
+}
+
+function recolor(){
+  if(!nfa||!nodesDS) return;
+  const c=C(), acc=new Set(nfa.accept);
+  nodesDS.update(nfa.states.map(s=>({
+    id:s,
+    color:{background:c.nBg,border:acc.has(s)?c.nAccBrd:c.nBrd,hover:{background:c.nActBg,border:c.nActBrd}},
+    font:{color:c.nTxt}, borderWidth:acc.has(s)?3:2,
+  })));
+  nodesDS.update([{id:'__s',color:{background:c.start,border:c.start}}]);
+  edgesDS.update(edgesDS.get().map(e=>({id:e.id,color:{color:C().edge},font:{...e.font,color:C().eTxt}})));
+  if(result) highlightStep(result.trace[curStep]);
+}
+
+// ── Load & Simulate ───────────────────────────────────────────────────────
+function loadNFA(j){
+  nfa=j; result=null; curStep=0; stopPlay();
+  document.getElementById('res-card').hidden=true;
+  document.getElementById('step-ctrl').hidden=true;
+  document.getElementById('legend').hidden=false;
+  document.getElementById('sim-btn').disabled=false;
+  initNet(nfa);
+}
+
+function doSim(){
+  if(!nfa) return;
+  const str=document.getElementById('str-in').value;
+  result=runNFA(nfa,str); curStep=0; stopPlay();
+
+  const acc=new Set(nfa.accept);
+  document.getElementById('res-box').className=result.accepted?'result-box ok':'result-box bad';
+  document.getElementById('res-icon').textContent=result.accepted?'✅':'❌';
+  document.getElementById('res-txt').textContent=result.accepted
+    ?`ACEITA — estados finais: {${result.finals.join(', ')}}`
+    :`REJEITA — nenhum estado de aceitação ativo`;
+
+  const ul=document.getElementById('trace-list');
+  ul.innerHTML='';
+  result.trace.forEach((step,i)=>{
+    const li=document.createElement('li');
+    li.className='t-item'; li.dataset.i=i;
+    const isLast=i===result.trace.length-1;
+    const hasAcc=step.states.some(s=>acc.has(s));
+    li.innerHTML=`
+      <span class="t-sym">${step.sym===null?'ε₀':"'"+step.sym+"'"}</span>
+      <span class="t-states${isLast&&hasAcc?' ok-color':''}">
+        {${step.states.length?step.states.join(', '):'∅'}}
+        ${step.sym===null?'<span style="opacity:.5;font-size:.7rem">início</span>':''}
+      </span>`;
+    li.onclick=()=>stepTo(i);
+    ul.appendChild(li);
+  });
+
+  const sc=document.getElementById('s-chars'); sc.innerHTML='';
+  ['ε',...str].forEach((ch,i)=>{
+    const d=document.createElement('div');
+    d.className='s-char'; d.dataset.i=i; d.textContent=ch;
+    sc.appendChild(d);
+  });
+
+  document.getElementById('res-card').hidden=false;
+  document.getElementById('step-ctrl').hidden=false;
+  stepTo(0);
+}
+
+// ── Step navigation ───────────────────────────────────────────────────────
+function stepTo(n){
+  if(!result) return;
+  const max=result.trace.length-1;
+  curStep=Math.max(0,Math.min(n,max));
+  highlightStep(result.trace[curStep]);
+  document.querySelectorAll('.t-item').forEach(el=>
+    el.classList.toggle('active',+el.dataset.i===curStep));
+  document.querySelector('.t-item.active')
+    ?.scrollIntoView({block:'nearest',behavior:'smooth'});
+  document.querySelectorAll('.s-char').forEach(ch=>{
+    const i=+ch.dataset.i;
+    ch.className='s-char'+(i===curStep?' cur':i<curStep?' done':'');
+  });
+  document.getElementById('s-info').textContent=
+    curStep===0?'Estado inicial (ε-fecho)':
+    `Leu '${result.trace[curStep].sym}' — passo ${curStep} de ${max}`;
+  document.getElementById('btn-prev').disabled=curStep===0;
+  document.getElementById('btn-next').disabled=curStep===max;
+}
+
+// ── Autoplay ──────────────────────────────────────────────────────────────
+function togglePlay(){
+  if(playing){stopPlay();return;}
+  if(result&&curStep>=result.trace.length-1) stepTo(0);
+  document.getElementById('btn-play').textContent='⏸';
+  playing=setInterval(()=>{
+    if(!result||curStep>=result.trace.length-1) stopPlay();
+    else stepTo(curStep+1);
+  },850);
+}
+function stopPlay(){
+  if(playing){clearInterval(playing);playing=null;}
+  document.getElementById('btn-play').textContent='▶';
+}
+
+// ── Theme ─────────────────────────────────────────────────────────────────
+function toggleTheme(){
+  document.documentElement.dataset.theme=dark()?'light':'dark';
+  recolor();
+}
+window.matchMedia('(prefers-color-scheme: dark)')
+  .addEventListener('change',()=>{if(!document.documentElement.dataset.theme)recolor();});
+
+// ── Init ──────────────────────────────────────────────────────────────────
+renderExamples();
+loadNFA(EXAMPLES[0].nfa);
+document.getElementById('str-in').value=EXAMPLES[0].input;
+</script>
